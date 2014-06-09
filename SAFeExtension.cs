@@ -53,9 +53,20 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             {
                 finalStatus = newStatus;
             }
-            else if (newStatus.Equals(EHPMTaskStatus.Completed) || (prevStatus.Equals(EHPMTaskStatus.Blocked)))
+            else if (prevStatus.Equals(EHPMTaskStatus.Blocked))
             {
                 finalStatus = prevStatus;
+            }
+            else if (newStatus.Equals(EHPMTaskStatus.Completed))
+            {
+                if (prevStatus.Equals(EHPMTaskStatus.NotDone))
+                {
+                    finalStatus = HansoftEnumValue.FromString(task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "In progress");
+                }
+                else
+                {
+                    finalStatus = prevStatus;
+                }
             }
             else if (newStatus.Equals(EHPMTaskStatus.Blocked))
             {
@@ -96,7 +107,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             Dictionary<string, TeamCollection> teamCollection = new Dictionary<string, TeamCollection>();
             StringBuilder sb = new StringBuilder();
             int totalLinkedPoints = 0;
-            HansoftEnumValue totalLinkedStatus = HansoftEnumValue.FromString(current_task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Not done");
+            HansoftEnumValue totalLinkedStatus = null;
             foreach (Task task in current_task.LinkedTasks)
             {
                 string team = task.Project.Name;
@@ -123,11 +134,11 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                     totalLinkedPoints += pair.Value.totalPoints;
                     totalLinkedStatus = TeamCollection.CalculateNewStatus(current_task, totalLinkedStatus, pair.Value.status);
                 }
-            }
-            if (updateTaskStatus)
-            {
-                current_task.Points = totalLinkedPoints;
-                current_task.Status = totalLinkedStatus;
+                if (updateTaskStatus)
+                {
+                    current_task.Points = totalLinkedPoints;
+                    current_task.Status = (totalLinkedStatus != null) ? totalLinkedStatus : HansoftEnumValue.FromString(current_task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Not done");
+                }
             }
 
             return sb.ToString();
