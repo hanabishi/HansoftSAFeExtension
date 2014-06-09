@@ -57,6 +57,10 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             {
                 finalStatus = prevStatus;
             }
+            else if (newStatus.Equals(EHPMTaskStatus.Blocked))
+            {
+                finalStatus = newStatus;
+            }
             else if (newStatus.Equals(EHPMTaskStatus.Completed))
             {
                 if (prevStatus.Equals(EHPMTaskStatus.NotDone))
@@ -67,10 +71,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 {
                     finalStatus = prevStatus;
                 }
-            }
-            else if (newStatus.Equals(EHPMTaskStatus.Blocked))
-            {
-                finalStatus = newStatus;
             }
             else if ((prevStatus.Equals(EHPMTaskStatus.InProgress) && (newStatus.Equals(EHPMTaskStatus.NotDone))))
             {
@@ -143,7 +143,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                     totalLinkedStatus = (totalLinkedStatus != null) ? totalLinkedStatus : HansoftEnumValue.FromString(current_task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Not done");
                     if (!totalLinkedStatus.Equals(current_task.Status))
                     {
-                        current_task.Status = current_task.Status;
+                        current_task.Status = totalLinkedStatus;
                     }
                 }
             }
