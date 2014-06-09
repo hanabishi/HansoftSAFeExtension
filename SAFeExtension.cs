@@ -22,8 +22,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
         public void addTask(Task task)
         {
-            if (task.Name == "System Infrastructure")
-                Console.WriteLine("break me");
             if (task.DeepLeaves.Count > 0)
             {
                 foreach (Task child in task.DeepLeaves)
