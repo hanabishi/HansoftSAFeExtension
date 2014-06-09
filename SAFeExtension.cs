@@ -147,7 +147,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 string format = "<CODE>{0,-20} │ {1,-14} │ {2, -13} │ {3, -10}</CODE>";
                 sb.Append(string.Format(format, new object[] { "Name", "Status", "Points", "Stories" }));
                 sb.Append("\n<CODE>─────────────────────┼────────────────┼───────────────┼───────────</CODE>\n");
-                bool breakOn = false;
                 foreach (KeyValuePair<string, TeamCollection> pair in teamCollection)
                 {
                     sb.Append(pair.Value.FormatString(format));
