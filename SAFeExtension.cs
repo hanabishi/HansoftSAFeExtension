@@ -22,42 +22,33 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
         public void addTask(Task task)
         {
-            // Once we can get aggregated functions to work this will do the trick!
-            //HansoftEnumValue aggregatedStatus = task.AggregatedStatus
-            HansoftEnumValue aggregatedStatus = GetAggregatedStatus(task);
-            totalStories++;
-            completedStories += ((aggregatedStatus.Equals(EHPMTaskStatus.Completed)) ? 1 : 0);
-            status = CalculateNewStatus(task, status, aggregatedStatus);
-            UpdatePoints(task);
-        }
-
-        private void UpdatePoints(Task task)
-        {
-            // Once we can get aggregated functions to work this will do the trick!
-            totalPoints += task.AggregatedPoints;
-            //completedPoints += task.AggregatedPoints - (int)task.AggregatedWorkRemaining;
+            if (task.Name == "System Infrastructure")
+                Console.WriteLine("break me");
             if (task.DeepLeaves.Count > 0)
             {
                 foreach (Task child in task.DeepLeaves)
                 {
+                    totalStories += 1;
+                    completedStories += ((child.Status.Equals(EHPMTaskStatus.Completed)) ? 1 : 0);
+
                     totalPoints += child.Points;
-                    if (child.Status.Equals(EHPMTaskStatus.Completed))
-                    {
-                        completedPoints += child.Points;
-                    }
+                    completedPoints += ((child.Status.Equals(EHPMTaskStatus.Completed)) ? child.Points : 0);
+
+                    status = CalculateNewStatus(task, status, child.Status);
                 }
             }
             else
             {
+                totalStories += 1;
+                completedStories += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? 1 : 0);
+
                 totalPoints += task.Points;
-                if (task.Status.Equals(EHPMTaskStatus.Completed))
-                {
-                    completedPoints += task.Points;
-                }
+                completedPoints += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? task.Points : 0);
+                status = task.Status;
             }
         }
 
-        private HansoftEnumValue CalculateNewStatus(Task task, HansoftEnumValue prevStatus, HansoftEnumValue newStatus)
+        public static HansoftEnumValue CalculateNewStatus(Task task, HansoftEnumValue prevStatus, HansoftEnumValue newStatus)
         {
             HansoftEnumValue finalStatus = null;
             if (prevStatus == null || (newStatus.Equals(prevStatus)))
@@ -87,24 +78,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             return finalStatus;
         }
 
-        private HansoftEnumValue GetAggregatedStatus(Task task)
-        {
-            HansoftEnumValue aggregatedStatus = null;
-            if (task.DeepLeaves.Count > 0)
-            {
-                foreach (Task child in task.DeepLeaves)
-                {
-                    aggregatedStatus = CalculateNewStatus(task, aggregatedStatus, child.Status);
-                }
-            }
-            else
-            {
-                aggregatedStatus = task.Status;
-            }
-
-            return aggregatedStatus;
-        }
-
         public string FormatString(string formatString)
         {
             string teamShort = team.Substring(0, (team.Length > 20) ? 19 : team.Length) + ((team.Length > 20) ? "…" : "");
@@ -118,14 +91,14 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         /// Creates the ProgramFeatureSummary and updates the points value based on the linked values.
         /// </summary>
         /// <param name="current_task"></param>
-        /// <param name="updatePoints">If set to true the points for the master item will be update with the aggregated points from the linked items.</param>
+        /// <param name="updateTaskStatus">If set to true the points for the master item will be update with the aggregated points from the linked items.</param>
         /// <returns>A asci art table with containing a summary of what needs to be done.</returns>
-        public static string ProgramFeatureSummary(Task current_task, bool updatePoints)
+        public static string ProgramFeatureSummary(Task current_task, bool updateTaskStatus)
         {
             Dictionary<string, TeamCollection> teamCollection = new Dictionary<string, TeamCollection>();
             StringBuilder sb = new StringBuilder();
             int totalLinkedPoints = 0;
-
+            HansoftEnumValue totalLinkedStatus = HansoftEnumValue.FromString(current_task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Not done");
             foreach (Task task in current_task.LinkedTasks)
             {
                 string team = task.Project.Name;
@@ -139,7 +112,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
                     }
                     teamCollection[team].addTask(task);
-                    totalLinkedPoints = teamCollection[team].totalPoints;
                 }
             }
             if (teamCollection.Count > 0)
@@ -150,12 +122,16 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 foreach (KeyValuePair<string, TeamCollection> pair in teamCollection)
                 {
                     sb.Append(pair.Value.FormatString(format));
+                    totalLinkedPoints += pair.Value.totalPoints;
+                    totalLinkedStatus = TeamCollection.CalculateNewStatus(current_task, totalLinkedStatus, pair.Value.status);
                 }
             }
-            if (updatePoints)
+            if (updateTaskStatus)
             {
                 current_task.Points = totalLinkedPoints;
+                current_task.Status = totalLinkedStatus;
             }
+
             return sb.ToString();
         }
 
