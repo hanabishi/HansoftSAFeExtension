@@ -34,7 +34,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         private void UpdatePoints(Task task)
         {
             // Once we can get aggregated functions to work this will do the trick!
-            //totalPoints += task.AggregatedPoints;
+            totalPoints += task.AggregatedPoints;
             //completedPoints += task.AggregatedPoints - (int)task.AggregatedWorkRemaining;
             if (task.DeepLeaves.Count > 0)
             {
@@ -107,7 +107,8 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
         public string FormatString(string formatString)
         {
-            return string.Format(formatString, new object[] { team.Substring(0, (team.Length > 20) ? 20 : team.Length), status.Text, completedPoints + "/" + totalPoints, completedStories + "/" + totalStories });
+            string teamShort = team.Substring(0, (team.Length > 20) ? 19 : team.Length) + ((team.Length > 20) ? "…" : "");
+            return string.Format(formatString, new object[] { teamShort, status.Text, completedPoints + "/" + totalPoints, completedStories + "/" + totalStories });
         }
     }
 
@@ -124,12 +125,12 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             Dictionary<string, TeamCollection> teamCollection = new Dictionary<string, TeamCollection>();
             StringBuilder sb = new StringBuilder();
             int totalLinkedPoints = 0;
+
             foreach (Task task in current_task.LinkedTasks)
             {
                 string team = task.Project.Name;
                 if (!team.StartsWith("Program") && !team.StartsWith("Port"))
                 {
-                    Console.WriteLine("PFS - Processing " + current_task.Name + " pointing to " + task.Name);
                     if (!teamCollection.ContainsKey(team))
                     {
                         TeamCollection collection = new TeamCollection();
@@ -150,13 +151,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 foreach (KeyValuePair<string, TeamCollection> pair in teamCollection)
                 {
                     sb.Append(pair.Value.FormatString(format));
-                    breakOn = pair.Value.totalPoints > 1;
-                }
-
-                Console.WriteLine(sb.ToString());
-                if (breakOn)
-                {
-                    Console.WriteLine("WOW");
                 }
             }
             if (updatePoints)
@@ -211,12 +205,12 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 {
                     double estimate = 0;
                     if (usePoints)
-
                         estimate = task.AggregatedPoints;
                     else
                         estimate = task.AggregatedEstimatedDays;
                     string daysDone = task.GetCustomColumnValue(completedColumn) + "/" + estimate;
-                    sb.Append(string.Format(format, new object[] { task.Name, task.AggregatedStatus, daysDone, task.GetCustomColumnValue("Velocity (14 days)"), task.GetCustomColumnValue("Estimated done"), task.GetCustomColumnValue("Product Owner") }));
+                    string taskShort = task.Name.Substring(0, (task.Name.Length > 20) ? 19 : task.Name.Length) + ((task.Name.Length > 20) ? "…" : "");
+                    sb.Append(string.Format(format, new object[] { taskShort, task.AggregatedStatus, daysDone, task.GetCustomColumnValue("Velocity (14 days)"), task.GetCustomColumnValue("Estimated done"), task.GetCustomColumnValue("Product Owner") }));
                     sb.Append('\n');
                 }
             }
@@ -238,7 +232,8 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                         estimate = task.AggregatedPoints;
                     else
                         estimate = task.AggregatedEstimatedDays;
-                    sb.Append(string.Format(format, new object[] { task.Name, estimate, task.GetCustomColumnValue("Team"), task.GetCustomColumnValue("Product Owner") }));
+                    string taskShort = task.Name.Substring(0, (task.Name.Length > 20) ? 19 : task.Name.Length) + ((task.Name.Length > 20) ? "…" : "");
+                    sb.Append(string.Format(format, new object[] { taskShort, estimate, task.GetCustomColumnValue("Team"), task.GetCustomColumnValue("Product Owner") }));
                     sb.Append('\n');
                 }
             }
@@ -260,7 +255,8 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                         estimate = task.AggregatedPoints;
                     else
                         estimate = task.AggregatedEstimatedDays;
-                    sb.Append(string.Format(format, new object[] { task.Name, estimate, ListUtils.ToString(new List<HansoftItem>(task.TaggedToReleases)) }));
+                    string taskShort = task.Name.Substring(0, (task.Name.Length > 20) ? 19 : task.Name.Length) + ((task.Name.Length > 20) ? "…" : "");
+                    sb.Append(string.Format(format, new object[] { taskShort, estimate, ListUtils.ToString(new List<HansoftItem>(task.TaggedToReleases)) }));
                     sb.Append('\n');
                 }
             }
