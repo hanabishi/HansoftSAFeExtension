@@ -49,40 +49,29 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         public static HansoftEnumValue CalculateNewStatus(Task task, HansoftEnumValue prevStatus, HansoftEnumValue newStatus)
         {
             HansoftEnumValue finalStatus = null;
-            if (prevStatus == null || (newStatus.Equals(prevStatus)))
+            // If either prevStatus or newStatus is null, the result is "the other value" (which can be null)
+            if (prevStatus == null)
             {
                 finalStatus = newStatus;
             }
-            else if (prevStatus.Equals(EHPMTaskStatus.Blocked))
+            else if (newStatus == null)
             {
                 finalStatus = prevStatus;
             }
-            else if (newStatus.Equals(EHPMTaskStatus.Blocked))
-            {
-                finalStatus = newStatus;
-            }
-            else if (newStatus.Equals(EHPMTaskStatus.Completed))
-            {
-                if (prevStatus.Equals(EHPMTaskStatus.NotDone))
-                {
-                    finalStatus = HansoftEnumValue.FromString(task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "In progress");
-                }
-                else
-                {
-                    finalStatus = prevStatus;
-                }
-            }
-            else if ((prevStatus.Equals(EHPMTaskStatus.InProgress) && (newStatus.Equals(EHPMTaskStatus.NotDone))))
+            else if (prevStatus.Equals(newStatus))
             {
                 finalStatus = prevStatus;
             }
-            else if ((!prevStatus.Equals(EHPMTaskStatus.NotDone) || (!newStatus.Equals(EHPMTaskStatus.NotDone))))
+            // If any story is Blocked the feature is Blocked
+            else if (prevStatus.Equals(EHPMTaskStatus.Blocked) || newStatus.Equals(EHPMTaskStatus.Blocked))
             {
-                finalStatus = HansoftEnumValue.FromString(task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "In progress");
+                //finalStatus = EHPMTaskStatus.Blocked;
+                finalStatus = HansoftEnumValue.FromString(task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Blocked");
             }
+            // For all other combinations the result is InProgress
             else
             {
-                finalStatus = newStatus;
+                finalStatus = HansoftEnumValue.FromString(task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "In progress");
             }
             return finalStatus;
         }
@@ -159,7 +148,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         /// <returns></returns>
         public static string FeatureSummary(Task current_task, bool usePoints, string completedColumn)
         {
-
             StringBuilder sb = new StringBuilder();
             List<Task> featuresInDevelopment = new List<Task>();
             List<Task> featuresInReleasePlanning = new List<Task>();
