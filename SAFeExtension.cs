@@ -130,7 +130,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                         current_task.Points = totalLinkedPoints;
                     }
                     totalLinkedStatus = (totalLinkedStatus != null) ? totalLinkedStatus : HansoftEnumValue.FromString(current_task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Not done");
-                    if (!totalLinkedStatus.Equals(current_task.Status))
+                    if (!totalLinkedStatus.Text.Equals(current_task.Status.Text))
                     {
                         current_task.Status = totalLinkedStatus;
                     }
