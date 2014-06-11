@@ -11,6 +11,8 @@ using Hansoft.ObjectWrapper;
 namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 {
 
+
+
     public class TeamCollection
     {
         public string team = "";
@@ -63,9 +65,8 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 finalStatus = prevStatus;
             }
             // If any story is Blocked the feature is Blocked
-            else if (prevStatus.Equals(EHPMTaskStatus.Blocked) || newStatus.Equals(EHPMTaskStatus.Blocked))
+            else if (prevStatus.Text.Equals("Blocked") || newStatus.Text.Equals("Blocked"))
             {
-                //finalStatus = EHPMTaskStatus.Blocked;
                 finalStatus = HansoftEnumValue.FromString(task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Blocked");
             }
             // For all other combinations the result is InProgress
@@ -85,6 +86,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
     public class SAFeExtension
     {
+        public static bool debug = false;
         /// <summary>
         /// Creates the ProgramFeatureSummary and updates the points value based on the linked values.
         /// </summary>
@@ -93,6 +95,10 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         /// <returns>A asci art table with containing a summary of what needs to be done.</returns>
         public static string ProgramFeatureSummary(Task current_task, bool updateTaskStatus)
         {
+            if (debug)
+            {
+                Console.WriteLine("*: " + current_task.Name);
+            }
             Dictionary<string, TeamCollection> teamCollection = new Dictionary<string, TeamCollection>();
             StringBuilder sb = new StringBuilder();
             int totalLinkedPoints = 0;
@@ -119,7 +125,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 sb.Append("\n<CODE>─────────────────────┼────────────────┼───────────────┼───────────</CODE>\n");
                 foreach (KeyValuePair<string, TeamCollection> pair in teamCollection)
                 {
-                    sb.Append(pair.Value.FormatString(format));
+                    sb.Append(pair.Value.FormatString(format) + "\n");
                     totalLinkedPoints += pair.Value.totalPoints;
                     totalLinkedStatus = TeamCollection.CalculateNewStatus(current_task, totalLinkedStatus, pair.Value.status);
                 }
@@ -127,11 +133,23 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 {
                     if (current_task.Points != totalLinkedPoints)
                     {
+                        if (debug)
+                        {
+                            Console.WriteLine(current_task.Name);
+                            Console.WriteLine("NEW POINT");
+                        }
                         current_task.Points = totalLinkedPoints;
                     }
                     totalLinkedStatus = (totalLinkedStatus != null) ? totalLinkedStatus : HansoftEnumValue.FromString(current_task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Not done");
                     if (!totalLinkedStatus.Text.Equals(current_task.Status.Text))
                     {
+                        if (debug)
+                        {
+
+                            Console.WriteLine(current_task.Name);
+                            Console.WriteLine("NEW STATUS");
+                            Console.WriteLine(current_task.Status.Text + "," + totalLinkedStatus.Text);
+                        }
                         current_task.Status = totalLinkedStatus;
                     }
                 }
