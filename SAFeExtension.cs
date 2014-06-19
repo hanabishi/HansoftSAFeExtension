@@ -7,11 +7,37 @@ using System.Xml.Serialization;
 using System.IO;
 using HPMSdk;
 using Hansoft.ObjectWrapper;
+using Hansoft.ObjectWrapper.CustomColumnValues;
 
 namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 {
 
+    public class TaskCollection
+    {
+        public int totalPoints = 0;
+        public int completedPoints = 0;
+        public string status = "";
+        public List<string> taskHeaders = new List<string>();
+        private string formatString = "<CODE>{0,-36} │ {1, -7}</CODE>";
+        public StringBuilder detailedDescription = new StringBuilder();
+        public TaskCollection(string status, int totalPoints, int completedPoints)
+        {
+            this.totalPoints = totalPoints;
+            this.completedPoints = completedPoints;
+            this.status = status;
+            detailedDescription.Append(string.Format(formatString, new object[] { "Name", "Points" }));
+            detailedDescription.Append("\n<CODE>─────────────────────────────────────┼─────────</CODE>\n");
+        }
 
+        public void addTaskInformation(Task task)
+        {
+            taskHeaders.Add(task.Name);
+            this.totalPoints += task.Points;
+            this.completedPoints = ((task.Status.Equals("Completed")) ? task.Points : 0);
+            string shortName = task.Name.Substring(0, (task.Name.Length > 36) ? 35 : task.Name.Length) + ((task.Name.Length > 36) ? "…" : "");
+            detailedDescription.Append(string.Format(formatString, new object[] { shortName, task.Points }) + "\n");
+        }
+    }
 
     public class TeamCollection
     {
@@ -22,6 +48,11 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         public int totalStories = 0;
         public HansoftEnumValue status = null;
 
+        public Dictionary<string, TaskCollection> taskGroup = null;
+        public TeamCollection(Dictionary<string, TaskCollection> taskGroup)
+        {
+            this.taskGroup = taskGroup;
+        }
         public void addTask(Task task)
         {
             if (task.DeepLeaves.Count > 0)
@@ -34,7 +65,12 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                     totalPoints += child.Points;
                     completedPoints += ((child.Status.Equals(EHPMTaskStatus.Completed)) ? child.Points : 0);
 
-                    status = CalculateNewStatus(task, status, child.Status);
+                    status = CalculateNewStatus(child, status, child.Status);
+                    if (!taskGroup.ContainsKey(child.Status.Text))
+                    {
+                        taskGroup.Add(child.Status.Text, new TaskCollection(child.Status.Text, 0, 0));
+                    }
+                    taskGroup[child.Status.Text].addTaskInformation(child);
                 }
             }
             else
@@ -45,6 +81,11 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 totalPoints += task.Points;
                 completedPoints += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? task.Points : 0);
                 status = task.Status;
+                if (!taskGroup.ContainsKey(status.Text))
+                {
+                    taskGroup.Add(status.Text, new TaskCollection(status.Text, 0, 0));
+                }
+                taskGroup[status.Text].addTaskInformation(task);
             }
         }
 
@@ -87,6 +128,85 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
     public class SAFeExtension
     {
         public static bool debug = false;
+
+        public static Task createNewTask(Task parent, TaskCollection taskCollection)
+        {
+            Task newTask = null;
+            foreach (Task subtask in parent.Leaves)
+            {
+                if (subtask.Name.Equals(taskCollection.status))
+                {
+                    newTask = subtask;
+                }
+            }
+            if (newTask == null && taskCollection.taskHeaders.Count > 0)
+            {
+                HPMTaskCreateUnifiedReference parentRefId = new HPMTaskCreateUnifiedReference();
+                parentRefId.m_RefID = parent.UniqueID;
+                parentRefId.m_bLocalID = false;
+
+                HPMTaskCreateUnified createData = new HPMTaskCreateUnified();
+                createData.m_Tasks = new HPMTaskCreateUnifiedEntry[1];
+                createData.m_Tasks[0] = new HPMTaskCreateUnifiedEntry();
+                createData.m_Tasks[0].m_bIsProxy = false;
+                createData.m_Tasks[0].m_LocalID = 1;
+                createData.m_Tasks[0].m_NonProxy_WorkflowID = 0xffffffff;
+                createData.m_Tasks[0].m_ParentRefIDs = new HPMTaskCreateUnifiedReference[1];
+                createData.m_Tasks[0].m_ParentRefIDs[0] = parentRefId;
+                createData.m_Tasks[0].m_PreviousRefID = new HPMTaskCreateUnifiedReference();
+                createData.m_Tasks[0].m_PreviousRefID.m_RefID = -1;
+                createData.m_Tasks[0].m_PreviousWorkPrioRefID = new HPMTaskCreateUnifiedReference();
+                createData.m_Tasks[0].m_PreviousWorkPrioRefID.m_RefID = -2;
+                createData.m_Tasks[0].m_TaskLockedType = EHPMTaskLockedType.BacklogItem;
+                createData.m_Tasks[0].m_TaskType = EHPMTaskType.Planned;
+                HPMChangeCallbackData_TaskCreateUnified result = SessionManager.Session.TaskCreateUnifiedBlock(parent.ProjectID.m_ID, createData);
+
+                SessionManager.Session.TaskSetFullyCreated(SessionManager.Session.TaskRefGetTask(result.m_Tasks[0].m_TaskRefID));
+                newTask = Task.GetTask(result.m_Tasks[0].m_TaskRefID);
+                newTask.Name = taskCollection.status;
+            }
+            if (taskCollection.taskHeaders.Count > 0)
+            {
+                //if (!newTask.GetCustomColumnValue("Task summary").Equals(taskCollection.detailedDescription.ToString()))
+                //{
+                //    newTask.SetCustomColumnValue("Task summary", taskCollection.detailedDescription.ToString());
+                //}
+
+                if (parent.Points > 0)
+                {
+                    parent.Points = 0;
+                }
+                if (newTask.Points != taskCollection.totalPoints)
+                {
+                    newTask.Points = taskCollection.totalPoints;
+                    newTask.WorkRemaining = taskCollection.totalPoints - taskCollection.completedPoints;
+                }
+                if (!newTask.Status.Text.Equals(taskCollection.status))
+                {
+                    newTask.Status = HansoftEnumValue.FromString(parent.ProjectID, EHPMProjectDefaultColumn.ItemStatus, taskCollection.status);
+                    try
+                    {
+                        SessionManager.Session.TaskSetCompleted(newTask.UniqueTaskID, taskCollection.status.Equals("Completed"), true);
+                    }
+                    catch (Exception epeen)
+                    {
+                    }
+                }
+            }
+            else if (newTask != null)
+            {
+                try
+                {
+                    SessionManager.Session.TaskDelete(newTask.UniqueTaskID);
+                }
+                catch (Exception epeen)
+                {
+                }
+            }
+
+            return newTask;
+        }
+
         /// <summary>
         /// Creates the ProgramFeatureSummary and updates the points value based on the linked values.
         /// </summary>
@@ -95,14 +215,14 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         /// <returns>A asci art table with containing a summary of what needs to be done.</returns>
         public static string ProgramFeatureSummary(Task current_task, bool updateTaskStatus)
         {
-            if (debug)
-            {
-                Console.WriteLine("*: " + current_task.Name);
-            }
             Dictionary<string, TeamCollection> teamCollection = new Dictionary<string, TeamCollection>();
+            Dictionary<string, TaskCollection> taskGroup = new Dictionary<string, TaskCollection>();
+            taskGroup.Add("In progress", new TaskCollection("In progress", 0, 0));
+            taskGroup.Add("Completed", new TaskCollection("Completed", 0, 0));
+            taskGroup.Add("Blocked", new TaskCollection("Blocked", 0, 0));
+            taskGroup.Add("Not done", new TaskCollection("Not done", 0, 0));
+            taskGroup.Add("To be deleted", new TaskCollection("To be deleted", 0, 0));
             StringBuilder sb = new StringBuilder();
-            int totalLinkedPoints = 0;
-            HansoftEnumValue totalLinkedStatus = null;
             foreach (Task task in current_task.LinkedTasks)
             {
                 string team = task.Project.Name;
@@ -110,7 +230,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 {
                     if (!teamCollection.ContainsKey(team))
                     {
-                        TeamCollection collection = new TeamCollection();
+                        TeamCollection collection = new TeamCollection(taskGroup);
                         collection.team = team;
                         teamCollection.Add(team, collection);
 
@@ -126,32 +246,10 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 foreach (KeyValuePair<string, TeamCollection> pair in teamCollection)
                 {
                     sb.Append(pair.Value.FormatString(format) + "\n");
-                    totalLinkedPoints += pair.Value.totalPoints;
-                    totalLinkedStatus = TeamCollection.CalculateNewStatus(current_task, totalLinkedStatus, pair.Value.status);
                 }
-                if (updateTaskStatus)
+                foreach (KeyValuePair<string, TaskCollection> taskPair in taskGroup)
                 {
-                    if (current_task.Points != totalLinkedPoints)
-                    {
-                        if (debug)
-                        {
-                            Console.WriteLine(current_task.Name);
-                            Console.WriteLine("NEW POINT");
-                        }
-                        current_task.Points = totalLinkedPoints;
-                    }
-                    totalLinkedStatus = (totalLinkedStatus != null) ? totalLinkedStatus : HansoftEnumValue.FromString(current_task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, "Not done");
-                    if (!totalLinkedStatus.Text.Equals(current_task.Status.Text))
-                    {
-                        if (debug)
-                        {
-
-                            Console.WriteLine(current_task.Name);
-                            Console.WriteLine("NEW STATUS");
-                            Console.WriteLine(current_task.Status.Text + "," + totalLinkedStatus.Text);
-                        }
-                        current_task.Status = totalLinkedStatus;
-                    }
+                    createNewTask(current_task, taskPair.Value);
                 }
             }
 
@@ -263,3 +361,4 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
 
 }
+
