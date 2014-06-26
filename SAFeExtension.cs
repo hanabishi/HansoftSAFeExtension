@@ -226,7 +226,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             foreach (Task task in current_task.LinkedTasks)
             {
                 string team = task.Project.Name;
-                if (!team.StartsWith("Program") && !team.StartsWith("Port"))
+                if (!team.ToLower().StartsWith("program") && !team.ToLower().StartsWith("port") & team.ToLower().StartsWith("team - "))
                 {
                     if (!teamCollection.ContainsKey(team))
                     {
