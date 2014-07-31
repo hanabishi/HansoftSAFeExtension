@@ -159,7 +159,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
             prevTaskID.m_bLocalID = true;
             prevTaskID.m_RefID = 0;
-            
+
             HPMChangeCallbackData_TaskCreateUnified proxyResult = SessionManager.Session.TaskCreateUnifiedBlock(ProjectID, ProxyTaskCreate);
         }
 
@@ -190,7 +190,8 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             Task newTask = Task.GetTask(result.m_Tasks[0].m_TaskRefID);
             HPMUniqueID masterRefID = newTask.UniqueID;
             newTask.Name = newTaskName;
-            if (sprintSearchResult.childID != null) {
+            if (sprintSearchResult.childID != null)
+            {
                 CreateProxyItem(sprintSearchResult, ProjectID, masterRefID);
             }
             return newTask;
@@ -209,32 +210,25 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
         public static SprintSearchCollection findSprintTaskID(Task parentTask)
         {
-            int sprintCounter = 0;
             HPMFindContext FindContext = new HPMFindContext();
-            while (true)
+
+            HPMFindContextData FindContextData = SessionManager.Session.UtilPrepareFindContext("Itemname: \"Program - PI\" AND ! Itemname: \":\"", parentTask.Project.UniqueID, EHPMReportViewType.AgileMainProject, FindContext);
+            HPMTaskEnum SprintIDEnum = SessionManager.Session.TaskFind(FindContextData, EHPMTaskFindFlag.None);
+            Console.WriteLine(SprintIDEnum.m_Tasks.Length);
+            foreach (HPMUniqueID searchID in SprintIDEnum.m_Tasks)
             {
-                Console.WriteLine(sprintCounter);
-                HPMFindContextData FindContextData = SessionManager.Session.UtilPrepareFindContext("Itemname=Text(\"SBO Program - PIN " + sprintCounter + "\")", parentTask.Project.UniqueID, EHPMReportViewType.AgileMainProject, FindContext);
-                HPMTaskEnum SprintIDEnum = SessionManager.Session.TaskFind(FindContextData, EHPMTaskFindFlag.None);
-                Console.WriteLine(SprintIDEnum.m_Tasks.Length);
-                foreach (HPMUniqueID searchID in SprintIDEnum.m_Tasks)
+                HPMUniqueID SprintRefID = SessionManager.Session.TaskGetMainReference(searchID);
+                Task sprint = Task.GetTask(SprintRefID);
+                foreach (Task child in sprint.DeepChildren)
                 {
-                    HPMUniqueID SprintRefID = SessionManager.Session.TaskGetMainReference(searchID);
-                    Task sprint = Task.GetTask(SprintRefID);
-                    foreach (Task child in sprint.DeepChildren)
+                    if (child.UniqueTaskID == parentTask.UniqueTaskID)
                     {
-                        if (child.UniqueTaskID == parentTask.UniqueTaskID)
-                        {
-                            return new SprintSearchCollection(child.UniqueID, SprintRefID);
-                        }
+                        return new SprintSearchCollection(child.UniqueID, SprintRefID);
                     }
                 }
-                if (SprintIDEnum.m_Tasks.Length == 0)
-                {
-                    return new SprintSearchCollection(null, null);
-                }
-                sprintCounter++;
             }
+
+            return new SprintSearchCollection(null, null);
         }
 
         public static Task createNewTask(Task parent, TaskCollection taskCollection)
@@ -248,7 +242,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                     newTask = subtask;
                 }
             }
-            if (newTask == null && taskCollection.taskHeaders.Count > 0)
+            if (newTask == null && taskCollection.taskHeaders.Count > 0 || true)
             {
                 SprintSearchCollection searchResult = findSprintTaskID(parent);
                 newTask = CreateTask(parent, parent.Project.UniqueID, taskCollection.status, searchResult);
