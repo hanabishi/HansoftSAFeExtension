@@ -48,7 +48,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         public int totalPoints = 0;
         public int totalStories = 0;
         public HansoftEnumValue status = null;
-
+        public SortedSet<string> plannedSprints = new SortedSet<string>();
         public Dictionary<string, TaskCollection> taskGroup = null;
         public TeamCollection(Dictionary<string, TaskCollection> taskGroup)
         {
@@ -60,33 +60,33 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             {
                 foreach (Task child in task.DeepLeaves)
                 {
-                    totalStories += 1;
-                    completedStories += ((child.Status.Equals(EHPMTaskStatus.Completed)) ? 1 : 0);
-
-                    totalPoints += child.Points;
-                    completedPoints += ((child.Status.Equals(EHPMTaskStatus.Completed)) ? child.Points : 0);
-
-                    status = CalculateNewStatus(child, status, child.Status);
-                    if (!taskGroup.ContainsKey(child.Status.Text))
-                    {
-                        taskGroup.Add(child.Status.Text, new TaskCollection(child.Status.Text, 0, 0));
-                    }
-                    taskGroup[child.Status.Text].addTaskInformation(child);
+                    updateFromTask(child);
                 }
             }
             else
             {
-                totalStories += 1;
-                completedStories += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? 1 : 0);
+                updateFromTask(task);
+            }
+        }
 
-                totalPoints += task.Points;
-                completedPoints += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? task.Points : 0);
-                status = task.Status;
-                if (!taskGroup.ContainsKey(status.Text))
-                {
-                    taskGroup.Add(status.Text, new TaskCollection(status.Text, 0, 0));
-                }
-                taskGroup[status.Text].addTaskInformation(task);
+        private void updateFromTask(Task task)
+        {
+            totalStories += 1;
+            completedStories += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? 1 : 0);
+
+            totalPoints += task.Points;
+            completedPoints += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? task.Points : 0);
+            status = CalculateNewStatus(task, status, task.Status);
+            if (!taskGroup.ContainsKey(status.Text))
+            {
+                taskGroup.Add(status.Text, new TaskCollection(status.Text, 0, 0));
+            }
+            taskGroup[status.Text].addTaskInformation(task);
+
+            CustomColumnValue val = task.GetCustomColumnValue("Planned sprint");
+            if (val != null && !String.IsNullOrEmpty(val.ToString()))
+            {
+                plannedSprints.Add(val.ToString());
             }
         }
 
@@ -122,7 +122,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         public string FormatString(string formatString)
         {
             string teamShort = team.Substring(0, (team.Length > 20) ? 19 : team.Length) + ((team.Length > 20) ? "…" : "");
-            return string.Format(formatString, new object[] { teamShort, status.Text, completedPoints + "/" + totalPoints, completedStories + "/" + totalStories });
+            return string.Format(formatString, new object[] { teamShort, status.Text, completedPoints + "/" + totalPoints, completedStories + "/" + totalStories, String.Join(", ", plannedSprints) });
         }
     }
 
@@ -242,17 +242,19 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                     newTask = subtask;
                 }
             }
-            if (newTask == null && taskCollection.taskHeaders.Count > 0 || true)
+            if (newTask == null && taskCollection.taskHeaders.Count > 0)
             {
                 SprintSearchCollection searchResult = findSprintTaskID(parent);
                 newTask = CreateTask(parent, parent.Project.UniqueID, taskCollection.status, searchResult);
             }
+            
             if (taskCollection.taskHeaders.Count > 0)
             {
-                //if (!newTask.GetCustomColumnValue("Task summary").Equals(taskCollection.detailedDescription.ToString()))
-                //{
-                //    newTask.SetCustomColumnValue("Task summary", taskCollection.detailedDescription.ToString());
-                //}
+                if (!newTask.GetCustomColumnValue("Item count").Equals(taskCollection.taskHeaders.Count.ToString()))
+                {
+                    newTask.SetCustomColumnValue("Item count", taskCollection.taskHeaders.Count.ToString());
+                }
+
                 if (parent.Points > 0)
                 {
                     parent.Points = 0;
@@ -307,7 +309,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             foreach (Task task in current_task.LinkedTasks)
             {
                 string team = task.Project.Name;
-                if (!team.ToLower().StartsWith("program") && !team.ToLower().StartsWith("port") & team.ToLower().StartsWith("team - "))
+                if (team.ToLower().StartsWith("team - "))
                 {
                     if (!teamCollection.ContainsKey(team))
                     {
@@ -320,9 +322,9 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             }
             if (teamCollection.Count > 0)
             {
-                string format = "<CODE>{0,-20} │ {1,-14} │ {2, -13} │ {3, -10}</CODE>";
-                sb.Append(string.Format(format, new object[] { "Name", "Status", "Points", "Stories" }));
-                sb.Append("\n<CODE>─────────────────────┼────────────────┼───────────────┼───────────</CODE>\n");
+                string format = "<CODE>{0,-20} │ {1,-11} │ {2, -6} │ {3, -8}│ {4, -15}</CODE>";
+                sb.Append(string.Format(format, new object[] { "Name", "Status", "Points", "Stories", "Planned sprint" }));
+                sb.Append("\n<CODE>─────────────────────┼─────────────┼────────┼─────────┼───────────────────</CODE>\n");
                 foreach (KeyValuePair<string, TeamCollection> pair in teamCollection)
                 {
                     sb.Append(pair.Value.FormatString(format) + "\n");
