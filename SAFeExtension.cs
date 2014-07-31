@@ -8,6 +8,7 @@ using System.IO;
 using HPMSdk;
 using Hansoft.ObjectWrapper;
 using Hansoft.ObjectWrapper.CustomColumnValues;
+using System.Collections;
 
 namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 {
@@ -129,9 +130,117 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
     {
         public static bool debug = false;
 
+        public static void CreateProxyItem(SprintSearchCollection SprintRefID, HPMUniqueID ProjectID, HPMUniqueID masterRefID)
+        {
+
+            HPMTaskCreateUnifiedReference parent = new HPMTaskCreateUnifiedReference();
+            parent.m_bLocalID = false;
+            parent.m_RefID = SprintRefID.childID;
+
+            // viken sprint
+            HPMTaskCreateUnifiedReference prevTaskID = new HPMTaskCreateUnifiedReference();
+            prevTaskID.m_bLocalID = false;
+            prevTaskID.m_RefID = SprintRefID.childID;
+
+
+            HPMTaskCreateUnified ProxyTaskCreate = new HPMTaskCreateUnified();
+            ProxyTaskCreate.m_Tasks = new HPMTaskCreateUnifiedEntry[1];
+            ProxyTaskCreate.m_Tasks[0] = new HPMTaskCreateUnifiedEntry();
+            ProxyTaskCreate.m_Tasks[0].m_bIsProxy = true;
+            ProxyTaskCreate.m_Tasks[0].m_LocalID = 0;
+            ProxyTaskCreate.m_Tasks[0].m_TaskType = EHPMTaskType.Planned;
+            ProxyTaskCreate.m_Tasks[0].m_TaskLockedType = EHPMTaskLockedType.BacklogItem;
+            ProxyTaskCreate.m_Tasks[0].m_ParentRefIDs = new HPMTaskCreateUnifiedReference[1];
+            ProxyTaskCreate.m_Tasks[0].m_ParentRefIDs[0] = parent;
+            ProxyTaskCreate.m_Tasks[0].m_PreviousWorkPrioRefID = new HPMTaskCreateUnifiedReference();
+            ProxyTaskCreate.m_Tasks[0].m_PreviousWorkPrioRefID.m_RefID = -2;
+            ProxyTaskCreate.m_Tasks[0].m_Proxy_ReferToRefTaskID = masterRefID;
+
+
+            prevTaskID.m_bLocalID = true;
+            prevTaskID.m_RefID = 0;
+            
+            HPMChangeCallbackData_TaskCreateUnified proxyResult = SessionManager.Session.TaskCreateUnifiedBlock(ProjectID, ProxyTaskCreate);
+        }
+
+        //public static Task CreateTask(Task parent, HPMUniqueID ProjectID, string status, HPMUniqueID sprintID)
+        public static Task CreateTask(Task parentTask, HPMUniqueID ProjectID, string newTaskName, SprintSearchCollection sprintSearchResult)
+        {
+            HPMUniqueID backlogProjectID = SessionManager.Session.ProjectOpenBacklogProject(ProjectID);
+
+            HPMTaskCreateUnifiedReference parentRefId = new HPMTaskCreateUnifiedReference();
+            parentRefId.m_RefID = parentTask.UniqueID;
+            parentRefId.m_bLocalID = false;
+
+            HPMTaskCreateUnified createData = new HPMTaskCreateUnified();
+            createData.m_Tasks = new HPMTaskCreateUnifiedEntry[1];
+            createData.m_Tasks[0] = new HPMTaskCreateUnifiedEntry();
+            createData.m_Tasks[0].m_bIsProxy = false;
+            createData.m_Tasks[0].m_LocalID = 0;
+            createData.m_Tasks[0].m_ParentRefIDs = new HPMTaskCreateUnifiedReference[1];
+            createData.m_Tasks[0].m_ParentRefIDs[0] = parentRefId;
+            createData.m_Tasks[0].m_PreviousRefID = new HPMTaskCreateUnifiedReference();
+            createData.m_Tasks[0].m_PreviousRefID.m_RefID = -1;
+            createData.m_Tasks[0].m_PreviousWorkPrioRefID = new HPMTaskCreateUnifiedReference();
+            createData.m_Tasks[0].m_PreviousWorkPrioRefID.m_RefID = -2;
+            createData.m_Tasks[0].m_TaskLockedType = EHPMTaskLockedType.BacklogItem;
+            createData.m_Tasks[0].m_TaskType = EHPMTaskType.Planned;
+            HPMChangeCallbackData_TaskCreateUnified result = SessionManager.Session.TaskCreateUnifiedBlock(backlogProjectID, createData);
+            SessionManager.Session.TaskSetFullyCreated(SessionManager.Session.TaskRefGetTask(result.m_Tasks[0].m_TaskRefID));
+            Task newTask = Task.GetTask(result.m_Tasks[0].m_TaskRefID);
+            HPMUniqueID masterRefID = newTask.UniqueID;
+            newTask.Name = newTaskName;
+            if (sprintSearchResult.childID != null) {
+                CreateProxyItem(sprintSearchResult, ProjectID, masterRefID);
+            }
+            return newTask;
+        }
+
+        public struct SprintSearchCollection
+        {
+            public HPMUniqueID childID;
+            public HPMUniqueID sprintID;
+            public SprintSearchCollection(HPMUniqueID childID, HPMUniqueID sprintID)
+            {
+                this.childID = childID;
+                this.sprintID = sprintID;
+            }
+        }
+
+        public static SprintSearchCollection findSprintTaskID(Task parentTask)
+        {
+            int sprintCounter = 0;
+            HPMFindContext FindContext = new HPMFindContext();
+            while (true)
+            {
+                Console.WriteLine(sprintCounter);
+                HPMFindContextData FindContextData = SessionManager.Session.UtilPrepareFindContext("Itemname=Text(\"SBO Program - PIN " + sprintCounter + "\")", parentTask.Project.UniqueID, EHPMReportViewType.AgileMainProject, FindContext);
+                HPMTaskEnum SprintIDEnum = SessionManager.Session.TaskFind(FindContextData, EHPMTaskFindFlag.None);
+                Console.WriteLine(SprintIDEnum.m_Tasks.Length);
+                foreach (HPMUniqueID searchID in SprintIDEnum.m_Tasks)
+                {
+                    HPMUniqueID SprintRefID = SessionManager.Session.TaskGetMainReference(searchID);
+                    Task sprint = Task.GetTask(SprintRefID);
+                    foreach (Task child in sprint.DeepChildren)
+                    {
+                        if (child.UniqueTaskID == parentTask.UniqueTaskID)
+                        {
+                            return new SprintSearchCollection(child.UniqueID, SprintRefID);
+                        }
+                    }
+                }
+                if (SprintIDEnum.m_Tasks.Length == 0)
+                {
+                    return new SprintSearchCollection(null, null);
+                }
+                sprintCounter++;
+            }
+        }
+
         public static Task createNewTask(Task parent, TaskCollection taskCollection)
         {
             Task newTask = null;
+
             foreach (Task subtask in parent.Leaves)
             {
                 if (subtask.Name.Equals(taskCollection.status))
@@ -141,29 +250,8 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             }
             if (newTask == null && taskCollection.taskHeaders.Count > 0)
             {
-                HPMTaskCreateUnifiedReference parentRefId = new HPMTaskCreateUnifiedReference();
-                parentRefId.m_RefID = parent.UniqueID;
-                parentRefId.m_bLocalID = false;
-
-                HPMTaskCreateUnified createData = new HPMTaskCreateUnified();
-                createData.m_Tasks = new HPMTaskCreateUnifiedEntry[1];
-                createData.m_Tasks[0] = new HPMTaskCreateUnifiedEntry();
-                createData.m_Tasks[0].m_bIsProxy = false;
-                createData.m_Tasks[0].m_LocalID = 1;
-                createData.m_Tasks[0].m_NonProxy_WorkflowID = 0xffffffff;
-                createData.m_Tasks[0].m_ParentRefIDs = new HPMTaskCreateUnifiedReference[1];
-                createData.m_Tasks[0].m_ParentRefIDs[0] = parentRefId;
-                createData.m_Tasks[0].m_PreviousRefID = new HPMTaskCreateUnifiedReference();
-                createData.m_Tasks[0].m_PreviousRefID.m_RefID = -1;
-                createData.m_Tasks[0].m_PreviousWorkPrioRefID = new HPMTaskCreateUnifiedReference();
-                createData.m_Tasks[0].m_PreviousWorkPrioRefID.m_RefID = -2;
-                createData.m_Tasks[0].m_TaskLockedType = EHPMTaskLockedType.BacklogItem;
-                createData.m_Tasks[0].m_TaskType = EHPMTaskType.Planned;
-                HPMChangeCallbackData_TaskCreateUnified result = SessionManager.Session.TaskCreateUnifiedBlock(parent.ProjectID.m_ID, createData);
-
-                SessionManager.Session.TaskSetFullyCreated(SessionManager.Session.TaskRefGetTask(result.m_Tasks[0].m_TaskRefID));
-                newTask = Task.GetTask(result.m_Tasks[0].m_TaskRefID);
-                newTask.Name = taskCollection.status;
+                SprintSearchCollection searchResult = findSprintTaskID(parent);
+                newTask = CreateTask(parent, parent.Project.UniqueID, taskCollection.status, searchResult);
             }
             if (taskCollection.taskHeaders.Count > 0)
             {
@@ -171,7 +259,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 //{
                 //    newTask.SetCustomColumnValue("Task summary", taskCollection.detailedDescription.ToString());
                 //}
-
                 if (parent.Points > 0)
                 {
                     parent.Points = 0;
@@ -188,7 +275,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                     {
                         SessionManager.Session.TaskSetCompleted(newTask.UniqueTaskID, taskCollection.status.Equals("Completed"), true);
                     }
-                    catch (Exception epeen)
+                    catch (Exception)
                     {
                     }
                 }
@@ -199,7 +286,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 {
                     SessionManager.Session.TaskDelete(newTask.UniqueTaskID);
                 }
-                catch (Exception epeen)
+                catch (Exception)
                 {
                 }
             }
@@ -212,7 +299,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         /// </summary>
         /// <param name="current_task"></param>
         /// <param name="updateTaskStatus">If set to true the points for the master item will be update with the aggregated points from the linked items.</param>
-        /// <returns>A asci art table with containing a summary of what needs to be done.</returns>
+        /// <returns>A ASCI art table with containing a summary of what needs to be done.</returns>
         public static string ProgramFeatureSummary(Task current_task, bool updateTaskStatus)
         {
             Dictionary<string, TeamCollection> teamCollection = new Dictionary<string, TeamCollection>();
@@ -233,7 +320,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                         TeamCollection collection = new TeamCollection(taskGroup);
                         collection.team = team;
                         teamCollection.Add(team, collection);
-
                     }
                     teamCollection[team].addTask(task);
                 }
@@ -250,6 +336,29 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 foreach (KeyValuePair<string, TaskCollection> taskPair in taskGroup)
                 {
                     createNewTask(current_task, taskPair.Value);
+                }
+
+                try
+                {
+                    CustomColumnValue v = current_task.GetCustomColumnValue("Team");
+                    // Intead of creating the list I jut simply get the existing list and clear it
+                    IList selectedTeams = v.ToStringList();
+                    selectedTeams.Clear();
+                    foreach (KeyValuePair<string, TeamCollection> pair in teamCollection)
+                    {
+                        string name = pair.Key.Substring(7);
+                        if (!selectedTeams.Contains(name))
+                        {
+                            selectedTeams.Add(name);
+                        }
+                    }
+                    CustomColumnValue.FromStringList(current_task, current_task.ProjectView.GetCustomColumn("Team"), selectedTeams);
+                    CustomColumnValue newValue = CustomColumnValue.FromStringList(current_task, current_task.ProjectView.GetCustomColumn("Team"), selectedTeams);
+                    current_task.SetCustomColumnValue("Team", newValue);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
                 }
             }
 
