@@ -56,6 +56,12 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
         }
         public void addTask(Task task)
         {
+            CustomColumnValue val = task.GetCustomColumnValue("Planned sprint");
+            if (val != null && !String.IsNullOrEmpty(val.ToString()))
+            {
+                plannedSprints.Add(val.ToString());
+            }
+
             if (task.DeepLeaves.Count > 0)
             {
                 foreach (Task child in task.DeepLeaves)
@@ -77,17 +83,11 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             totalPoints += task.Points;
             completedPoints += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? task.Points : 0);
             status = CalculateNewStatus(task, status, task.Status);
-            if (!taskGroup.ContainsKey(status.Text))
+            if (!taskGroup.ContainsKey(task.Status.Text))
             {
-                taskGroup.Add(status.Text, new TaskCollection(status.Text, 0, 0));
+                taskGroup.Add(task.Status.Text, new TaskCollection(task.Status.Text, 0, 0));
             }
-            taskGroup[status.Text].addTaskInformation(task);
-
-            CustomColumnValue val = task.GetCustomColumnValue("Planned sprint");
-            if (val != null && !String.IsNullOrEmpty(val.ToString()))
-            {
-                plannedSprints.Add(val.ToString());
-            }
+            taskGroup[task.Status.Text].addTaskInformation(task);
         }
 
         public static HansoftEnumValue CalculateNewStatus(Task task, HansoftEnumValue prevStatus, HansoftEnumValue newStatus)
@@ -214,7 +214,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
             HPMFindContextData FindContextData = SessionManager.Session.UtilPrepareFindContext("Itemname: \"Program - PI\" AND ! Itemname: \":\"", parentTask.Project.UniqueID, EHPMReportViewType.AgileMainProject, FindContext);
             HPMTaskEnum SprintIDEnum = SessionManager.Session.TaskFind(FindContextData, EHPMTaskFindFlag.None);
-            Console.WriteLine(SprintIDEnum.m_Tasks.Length);
+            
             foreach (HPMUniqueID searchID in SprintIDEnum.m_Tasks)
             {
                 HPMUniqueID SprintRefID = SessionManager.Session.TaskGetMainReference(searchID);
