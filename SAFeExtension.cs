@@ -142,7 +142,6 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             prevTaskID.m_bLocalID = false;
             prevTaskID.m_RefID = SprintRefID.childID;
 
-
             HPMTaskCreateUnified ProxyTaskCreate = new HPMTaskCreateUnified();
             ProxyTaskCreate.m_Tasks = new HPMTaskCreateUnifiedEntry[1];
             ProxyTaskCreate.m_Tasks[0] = new HPMTaskCreateUnifiedEntry();
@@ -214,7 +213,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
             HPMFindContextData FindContextData = SessionManager.Session.UtilPrepareFindContext("Itemname: \"Program - PI\" AND ! Itemname: \":\"", parentTask.Project.UniqueID, EHPMReportViewType.AgileMainProject, FindContext);
             HPMTaskEnum SprintIDEnum = SessionManager.Session.TaskFind(FindContextData, EHPMTaskFindFlag.None);
-            
+
             foreach (HPMUniqueID searchID in SprintIDEnum.m_Tasks)
             {
                 HPMUniqueID SprintRefID = SessionManager.Session.TaskGetMainReference(searchID);
@@ -247,7 +246,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 SprintSearchCollection searchResult = findSprintTaskID(parent);
                 newTask = CreateTask(parent, parent.Project.UniqueID, taskCollection.status, searchResult);
             }
-            
+
             if (taskCollection.taskHeaders.Count > 0)
             {
                 if (!newTask.GetCustomColumnValue("Item count").Equals(taskCollection.taskHeaders.Count.ToString()))
@@ -329,9 +328,12 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 {
                     sb.Append(pair.Value.FormatString(format) + "\n");
                 }
-                foreach (KeyValuePair<string, TaskCollection> taskPair in taskGroup)
+                if (current_task.Parent.Name.ToLower() == "development")
                 {
-                    createNewTask(current_task, taskPair.Value);
+                    foreach (KeyValuePair<string, TaskCollection> taskPair in taskGroup)
+                    {
+                        createNewTask(current_task, taskPair.Value);
+                    }
                 }
 
                 try
@@ -354,7 +356,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.Message);
+                    //Console.WriteLine(e.Message);
                 }
             }
 
