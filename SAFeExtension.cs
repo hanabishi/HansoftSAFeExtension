@@ -289,6 +289,23 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             return newTask;
         }
 
+        private static bool isUnderDevelopment(HansoftItem current_task)
+        {
+            HansoftItem parent = current_task.Parent;
+            if (current_task == null ||parent == null)
+            {
+                return false;
+            }
+            if (parent.Name.ToLower() == "product backlog" && current_task.Name.ToLower() == "development")
+            {
+                return true;
+            }
+            else
+            {
+                return isUnderDevelopment(parent);
+            }
+        }
+
         /// <summary>
         /// Creates the ProgramFeatureSummary and updates the points value based on the linked values.
         /// </summary>
@@ -328,7 +345,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                 {
                     sb.Append(pair.Value.FormatString(format) + "\n");
                 }
-                if (current_task.Parent.Name.ToLower() == "development")
+                if (isUnderDevelopment(current_task.Parent))
                 {
                     foreach (KeyValuePair<string, TaskCollection> taskPair in taskGroup)
                     {
