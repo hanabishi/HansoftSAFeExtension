@@ -198,15 +198,10 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             }
             catch (Exception)
             {
-                // If we have a crash see if we can find items without names
-                foreach (Task subtask in parentTask.Leaves)
+                if (newTask != null)
                 {
-                    if (subtask.Name == "")
-                    {
-                        SessionManager.Session.TaskDelete(subtask.UniqueTaskID);
-                    }
+                    SessionManager.Session.TaskDelete(newTask.UniqueTaskID);
                 }
-
             }
 
             return newTask;
@@ -292,6 +287,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                     }
                     catch (Exception)
                     {
+
                     }
                 }
             }
