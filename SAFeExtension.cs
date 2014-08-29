@@ -82,15 +82,38 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
 
             totalPoints += task.Points;
             completedPoints += ((task.Status.Equals(EHPMTaskStatus.Completed)) ? task.Points : 0);
-            //HPMTaskSummary summaryStatus = SessionManager.Session.TaskRefGetSummary(task.UniqueTaskID);
-            //summaryStatus.m_TaskStatus
-            status = CalculateNewStatus(task, status, task.Status);
-            if (!taskGroup.ContainsKey(task.Status.Text))
+            HansoftEnumValue taskStatus = getAggregatedStatus(task);
+            status = CalculateNewStatus(task, status, taskStatus);
+
+            if (!taskGroup.ContainsKey(taskStatus.Text))
             {
-                taskGroup.Add(task.Status.Text, new TaskCollection(task.Status.Text, 0, 0));
+                taskGroup.Add(taskStatus.Text, new TaskCollection(taskStatus.Text, 0, 0));
             }
-            taskGroup[task.Status.Text].addTaskInformation(task);
+            taskGroup[taskStatus.Text].addTaskInformation(task);
         }
+        private static HansoftEnumValue getAggregatedStatus(Task task)
+        {
+            HPMTaskSummary summaryStatus = SessionManager.Session.TaskRefGetSummary(task.Id);
+            if (task.Status.Text == task.AggregatedStatus.Text)
+            {
+                return task.Status;
+            }
+            
+            string statusString = "Not Done";
+            switch (summaryStatus.m_TaskStatus)
+            {
+                case EHPMTaskStatus.Blocked: statusString = "Blocked"; break;
+                case EHPMTaskStatus.Completed: statusString = "Completed"; break;
+                case EHPMTaskStatus.Deleted: statusString = "Deleted"; break;
+                case EHPMTaskStatus.InProgress: statusString = "In Progress"; break;
+                case EHPMTaskStatus.NewVersionOfSDKRequired: statusString = "New Version Of SDK Required"; break;
+                case EHPMTaskStatus.NoStatus: statusString = "No Status"; break;
+                case EHPMTaskStatus.NotDone: statusString = "Not Done"; break;
+            }
+            
+            return HansoftEnumValue.FromString(task.ProjectID, EHPMProjectDefaultColumn.ItemStatus, statusString);
+        }
+
 
         public static HansoftEnumValue CalculateNewStatus(Task task, HansoftEnumValue prevStatus, HansoftEnumValue newStatus)
         {
@@ -104,7 +127,7 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             {
                 finalStatus = prevStatus;
             }
-            else if (prevStatus.Equals(newStatus))
+            else if (prevStatus.Text.Equals(newStatus.Text))
             {
                 finalStatus = prevStatus;
             }
@@ -337,12 +360,9 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
             taskGroup.Add("Blocked", new TaskCollection("Blocked", 0, 0));
             taskGroup.Add("Not done", new TaskCollection("Not done", 0, 0));
             taskGroup.Add("To be deleted", new TaskCollection("To be deleted", 0, 0));
-
             StringBuilder sb = new StringBuilder();
             foreach (Task task in current_task.LinkedTasks)
             {
-                Console.WriteLine(task.Name);
-                Console.WriteLine(task.Status);
                 string team = task.Project.Name;
                 if (team.ToLower().StartsWith("team - "))
                 {
@@ -393,9 +413,9 @@ namespace Hansoft.Jean.Behavior.DeriveBehavior.Expressions
                     CustomColumnValue newValue = CustomColumnValue.FromStringList(current_task, current_task.ProjectView.GetCustomColumn("Team"), selectedTeams);
                     current_task.SetCustomColumnValue("Team", newValue);
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
-                    //Console.WriteLine(e.Message);
+
                 }
             }
 
